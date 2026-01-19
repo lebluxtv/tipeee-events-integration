@@ -7,6 +7,8 @@ Practical documentation of **what we actually implemented and observed** to rece
 - in **C# inside Streamer.bot** (WebSocket + manual parsing)
 
 No “official API” claims. Just working, reproducible stuff.
+This project documents observed behavior of Tipeee live events.
+It is not affiliated with, endorsed by, or supported by Tipeee.
 
 ## Files
 - [`payload.md`](payload.md) — observed payload examples (live + replay)
