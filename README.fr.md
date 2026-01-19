@@ -6,7 +6,9 @@ Documentation **pratique** sur **ce qu’on a réellement fait et observé** pou
 - dans une **page web (JS)** via `socket.io-client`
 - en **C# dans Streamer.bot** (WebSocket + parsing manuel)
 
-Aucune prétention d’API officielle. Juste du concret, reproductible.
+Aucune prétention d’API officielle. Juste du concret, reproductible. 
+Ce projet documente le comportement observé empiriquement des événements live Tipeee.
+Il n’est ni affilié, ni approuvé, ni soutenu par Tipeee.
 
 ## Fichiers
 - [`payload.fr.md`](payload.fr.md) — exemples de payload observés (live + replay)
