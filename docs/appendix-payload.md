@@ -71,17 +71,17 @@ All meaningful data is nested under the `event` key.
       "currency": "EUR",
       "message": "tip test",
       "formattedMessage": "tip test",
-      "username": "Holdus",
+      "username": "UserName",
       "publicMessage": false
     },
 
     "project": {
       "id": 353397,
-      "slug": "lebluxtv",
+      "slug": "username",
       "status": "OPEN",
 
       "translations": {
-        "fr": { "name": "LeBluxTV" }
+        "fr": { "name": "UserName" }
       },
 
       "currency": {
