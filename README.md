@@ -75,10 +75,12 @@ docs/
 ### Recommended Reading Order
 
 1. **README.md** (this file)
-2. `docs/compatibility.md`
-3. `docs/specification.md`
-4. `docs/appendix-payload.md`
-5. `docs/faq.md`
+2. [`docs/compatibility.md`](docs/compatibility.md) — Transport & client compatibility
+3. [`docs/specification.md`](docs/specification.md) — Functional contract
+4. [`docs/appendix-payload.md`](docs/appendix-payload.md) — Raw observed payloads
+5. [`docs/architecture.md`](docs/architecture.md) — System overview
+6. [`docs/faq.md`](docs/faq.md) — Common questions`
+7. [`docs/glossary.md`](docs/glossary.md) — Terminology
 
 ---
 
