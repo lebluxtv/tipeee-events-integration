@@ -1,11 +1,11 @@
-# JS example (web)
+# Exemple JS (web)
 
-**Language:** EN | [FR](js_example.fr.md)
+**Langue :** [EN](js_example.md) | FR
 
-Context: browser page.  
-The official `socket.io-client` handles the hard stuff (ping/pong, framing, etc.).
+Contexte : page web (navigateur).  
+Le client officiel `socket.io-client` gère les trucs chiants (ping/pong, framing, etc.).
 
-## Minimal code
+## Code minimal
 
 ```js
 import io from "socket.io-client";
@@ -38,8 +38,8 @@ socket.on("disconnect", (reason) => console.warn("[TIPEEE] disconnected", reason
 socket.on("connect_error", (err) => console.error("[TIPEEE] connect_error", err));
 ```
 
-## What JS hides (important)
-In JS, you typically do **not** implement:
-- Engine.IO ping/pong
-- Socket.IO `42[...]` framing
-- low-level reconnect behavior
+## Ce que JS te masque (important)
+En JS, tu n’implémentes généralement pas :
+- ping/pong Engine.IO
+- framing `42[...]` Socket.IO
+- reconnect bas niveau

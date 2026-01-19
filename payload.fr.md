@@ -1,19 +1,19 @@
-# Payload (what we receive)
+# Payload (ce qu’on reçoit)
 
-**Language:** EN | [FR](payload.fr.md)
+**Langue :** [EN](payload.md) | FR
 
-Goal: keep a **ground-truth reference** of what we observed in the wild.
-Use it to compare quickly with your own logs.
+But : garder une **référence terrain** de ce qu’on a vraiment vu passer.
+À utiliser pour comparer vite avec tes logs.
 
-## General shape
+## Structure générale
 
-After Socket.IO decoding, the payload looks like:
+Après décodage Socket.IO, le payload ressemble à :
 
 ```json
 { "event": { ... } }
 ```
 
-Useful fields we consistently saw:
+Champs utiles qu’on a vus de façon consistante :
 - `event.type`
 - `event.is_event_replay`
 - `event.parameters` (username, amount, currency, message)
@@ -22,7 +22,7 @@ Useful fields we consistently saw:
 
 ---
 
-## Example A — Donation (LIVE) (sanitized)
+## Exemple A — Donation (LIVE) (sanitisé)
 
 ```json
 {
@@ -48,9 +48,9 @@ Useful fields we consistently saw:
 
 ---
 
-## Example B — Donation (REPLAY) (triggered from dashboard)
+## Exemple B — Donation (REPLAY) (relance depuis dashboard)
 
-Main difference: `is_event_replay = true`
+Différence principale : `is_event_replay = true`
 
 ```json
 {
@@ -76,12 +76,12 @@ Main difference: `is_event_replay = true`
 
 ---
 
-## Notes (no fluff)
+## Notes (sans bullshit)
 
-### Replay is not a different event type
-It’s the same Socket.IO event (`new-event`), same structure, with a flag.
+### Replay ≠ nouveau type d’event
+C’est le même event Socket.IO (`new-event`), même structure, juste un flag.
 
-### `DIRECT_MONTH` does not prove recurring billing
-We observed one-shot donations that still had `DIRECT_MONTH`.
-At this stage we **cannot** reliably infer “true recurring” from the payload alone.
-So: do not build billing logic from `donation_type` or campaign settings only.
+### `DIRECT_MONTH` ≠ don récurrent garanti
+On a déjà vu des dons ponctuels avec `DIRECT_MONTH`.
+À ce stade, on **ne sait pas** déduire un “vrai recurring” de façon fiable.
+Donc : ne base pas une logique “recurring” uniquement sur `donation_type` / campagne.

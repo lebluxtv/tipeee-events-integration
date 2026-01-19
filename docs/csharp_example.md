@@ -1,73 +1,29 @@
 # C# example (Streamer.bot ONLY)
 
-⚠️ **Important**  
-Ce qui suit a été **testé uniquement dans le contexte Streamer.bot** (script C#).  
-On ne prétend pas fournir un client Socket.IO générique C#.
+**Language:** EN | [FR](csharp_example.fr.md)
 
-## Pourquoi c’est différent du JS
-Dans Streamer.bot, tu n’utilises pas `socket.io-client`.  
-Donc tu dois gérer ce que JS masque.
+⚠️ **Scope note**  
+This approach was **tested only inside the Streamer.bot scripting environment**.  
+No claim is made that this is a generic C# Socket.IO client.
 
-### Les 2 points qui nous ont bloqués avant “Eureka”
-1) Engine.IO ping/pong : quand le serveur envoie `"2"`, il faut répondre `"3"`.
-2) Les events Socket.IO arrivent en frames **`42[...]`** (et surtout pas `"2"`).
+## Why it differs from JS
+In Streamer.bot, you’re not using `socket.io-client`.  
+So you must handle what JS normally hides.
 
-Si tu confonds `42[...]` avec `2`, tu perds tous les events sans le voir.
+### Two concrete blockers we had before “Eureka”
+1) Engine.IO heartbeat: when the server sends `"2"`, the client must reply `"3"`.
+2) Socket.IO events come in frames starting with **`42`** (not `"2"`).
 
----
-
-## Ce qu’on fait concrètement (résumé)
-- Connexion WebSocket à l’endpoint Tipeee
-- À chaque message reçu :
-  - si message == `"2"` → envoyer `"3"` (pong)
-  - si message commence par `"42"` → parser l’array JSON :
-    - index 0 : nom d’event (ex: `"new-event"`)
-    - index 1 : payload (ex: `{ "event": {...} }`)
-- Stocker le raw (utile debug)
-- Déduire `isReplay` depuis `event.is_event_replay`
+If you don’t treat `42[...]` correctly, you can stay “connected” but receive no events.
 
 ---
 
-## Parsing minimal (pseudo-code lisible)
-
-```csharp
-// msg = string reçu depuis le WebSocket
-
-if (msg == "2") {
-    // Engine.IO ping
-    Send("3"); // pong
-    return;
-}
-
-if (msg.StartsWith("42")) {
-    // Socket.IO EVENT
-    // msg = 42["new-event", { ...payload... }]
-    var json = msg.Substring(2);
-
-    // parse json as JArray
-    var arr = JArray.Parse(json);
-
-    var eventName = (string)arr[0]; // "new-event"
-    var payload = (JObject)arr[1];  // { "event": {...} }
-
-    if (eventName == "new-event") {
-        var evt = payload["event"] as JObject;
-        var isReplay = (bool?)evt?["is_event_replay"] == true;
-
-        var username = (string?)evt?["parameters"]?["username"];
-        var amount = (double?)evt?["parameters"]?["amount"] ?? 0.0;
-        var currency = (string?)evt?["parameters"]?["currency"];
-        var message = (string?)evt?["parameters"]?["message"];
-
-        // logs + stockage raw
-    }
-}
-```
-
----
-
-## Replay
-Un replay (relance depuis le dashboard) arrive comme un `new-event` normal, avec :
-- `event.is_event_replay = true`
-
-Donc : ne filtre pas “par type d’event”, filtre avec ce flag si tu veux les traiter différemment.
+## What we do (practical summary)
+- Connect a WebSocket to the Tipeee endpoint
+- For each received message:
+  - if message == `"2"` → send `"3"` (pong)
+  - if message starts with `"42"` → parse the JSON array:
+    - index 0: event name (e.g. `"new-event"`)
+    - index 1: payload (e.g. `{ "event": {...} }`)
+- Store raw payload for debugging
+- Detect replay via `event.is_event_replay`
