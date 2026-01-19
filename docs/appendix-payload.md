@@ -1,20 +1,59 @@
-## Appendix A – Observed Live Event Payload (Full Sanitized Example)
-
-This appendix provides a **comprehensive, sanitized example** of a real live event
-payload received from the Tipeee Socket.IO event stream.
-
-The structure reflects **actual observed payloads** while anonymizing sensitive or
-account-specific data.
-
-⚠️ **Important**
-- This payload is provided for **illustration purposes only**
-- It does **not** represent a stable or versioned API contract
-- Field presence, naming, and structure may change without notice
-- Consumers must implement **defensive parsing**
+# Tipeee Socket.IO Event Payload – Observed Specification
+**Version:** 1.0  
+**Status:** Observational / Reverse-engineered  
+**Last update:** 2026-01-19
 
 ---
 
-### Full Payload Example (Sanitized)
+## 1. Scope & Intent
+
+This document describes the **observed structure and behavior** of events received
+from the **Tipeee Socket.IO live event stream**, as used by the Tipeee dashboard
+and third-party integrations.
+
+⚠️ **Important notice**
+
+- This is **not an official API contract**
+- The structure is **reverse-engineered from real traffic**
+- Field presence, naming and nesting **may change without notice**
+- All parsing **must be defensive**
+- Any behavioral inference (recurring billing, replay, etc.) must be explicitly justified
+
+---
+
+## 2. Transport Layer (Socket.IO / Engine.IO)
+
+### 2.1 Event Envelope
+
+Observed Socket.IO frames carrying payloads are **EVENT frames**:
+
+```
+42["<eventName>", { ...payload... }]
+```
+
+Observed so far:
+
+- `eventName = "new-event"`
+
+No alternative event names have been observed for donations or replays.
+
+---
+
+## 3. Single Raw Payload Format (Important)
+
+There is **ONE raw payload format**.
+
+There are **NOT multiple raw JSON schemas**.
+
+Differences such as:
+- live vs replay
+- monthly context vs one-shot payment
+
+are expressed via **flags and contextual fields**, not via distinct event types.
+
+---
+
+## 4. Full Observed Payload (Sanitized Example)
 
 ```json
 {
@@ -42,24 +81,9 @@ account-specific data.
       "id": "<project_id>",
       "slug": "<project_slug>",
       "status": "OPEN",
-      "name": "",
 
       "translations": {
-        "fr": {
-          "name": "ExampleProject"
-        }
-      },
-
-      "avatar": {
-        "id": "<media_id>",
-        "name": "<filename>",
-        "type": "image",
-        "mime_type": "image/png",
-        "original_filename": "<original_filename>",
-        "filename": "<stored_filename>",
-        "path": "<storage_path>",
-        "size": 0,
-        "updated_at": "YYYY-MM-DDTHH:MM:SS+TZ"
+        "fr": { "name": "ExampleProject" }
       },
 
       "currency": {
@@ -69,38 +93,10 @@ account-specific data.
       },
 
       "parameters": {
-        "notification_tip": "1",
-        "hidedAmount": false,
-        "tipperAmount": "1",
-        "tipperNumber": "1",
-
-        "campaign_name": "monthly",
         "campaign_type": "per_month",
-
-        "adult_content": false,
-        "enabled_streaming": "YYYY-MM-DD HH:MM:SS",
-
         "disableRecurring": false,
         "recurring_only": false,
-        "direct_only": false,
-
-        "banned": false,
-        "moderationVerified": false,
-        "moderationNsfw": false,
-        "moderationReported": false,
-
-        "module_countdown_activated": false,
-        "module_countdown_title": false,
-        "module_countdown_description": false,
-        "module_countdown_ending_time": false,
-        "module_countdown_icon_id": false,
-        "module_countdown_image_id": false,
-        "module_countdown_reward_id": false,
-        "module_countdown_link": false,
-
-        "migration_status": "2",
-        "translations_enabled": false,
-        "discussion_activated": false
+        "direct_only": false
       }
     }
   }
@@ -109,69 +105,149 @@ account-specific data.
 
 ---
 
-### Parsing Guidance
+## 5. Live Event vs Replay Event
 
-The payload contains **significantly more data than required** for most integrations.
+### 5.1 Key Observation
 
-Recommended extraction points:
+**Replay alerts DO NOT use a different event name.**
 
-| Field | Path |
+Both live events and replayed alerts arrive as:
+
+```
+eventName = "new-event"
+```
+
+### 5.2 Replay Detection (Authoritative)
+
+Replay detection is based **solely** on the payload flag:
+
+```
+event.is_event_replay = true
+```
+
+| Case | is_event_replay |
+|----|----|
+| Live donation | `false` or missing |
+| Replay (dashboard relaunch) | `true` |
+
+---
+
+## 6. Donation Cadence vs True Recurrence (Critical Section)
+
+### 6.1 What the Payload CAN Tell Us
+
+The following fields are observed:
+
+- `event.donation_type` (e.g. `"DIRECT_MONTH"`)
+- `event.project.parameters.campaign_type` (e.g. `"per_month"`)
+
+These fields indicate the **campaign or UI context** in which the donation was made.
+
+They **DO NOT prove** that:
+- the payment will repeat
+- a subscription exists
+- a future charge is scheduled
+
+A user can make a **one-time payment** inside a monthly campaign.
+
+### 6.2 What the Payload DOES NOT Contain (So Far)
+
+No observed payload contains:
+
+- `subscription_id`
+- `recurring_id`
+- `next_payment_at`
+- `next_charge_at`
+- `subscription` / `recurring` object
+
+Therefore:
+
+> **True recurring billing CANNOT be determined with certainty from current payloads.**
+
+---
+
+## 7. Correct Conceptual Model
+
+### 7.1 Distinguish These Three Concepts
+
+| Concept | Meaning |
 |------|------|
-| Username | `event.parameters.username` |
-| Amount | `event.parameters.amount` |
-| Currency code | `event.parameters.currency` |
-| Message | `event.parameters.message` |
-| Project slug | `event.project.slug` |
-| Currency symbol | `event.project.currency.symbol` |
+| Donation type | Technical classification used internally by Tipeee |
+| Campaign cadence | Monthly / yearly context of the project |
+| True recurrence | Automatic future billing |
 
-All other fields should be considered **contextual metadata**.
+Only the first two are currently observable.
 
 ---
 
-### Observations
+## 8. Recommended Normalized Model (Safe & Honest)
 
-- Payloads are **deeply nested**
-- Many fields are configuration flags unrelated to the donation itself
-- Boolean and string-encoded numeric values may coexist
-- New fields may appear without notice
-- Some fields may be absent depending on:
-  - donation type
-  - project configuration
-  - replay vs live events
-
----
-
-### Recommended Handling Strategy
-
-- Never assume field presence
-- Never assume fixed nesting depth
-- Avoid hard dependencies on project configuration fields
-- Preserve the **raw payload** for debugging and forward compatibility
-- Map only the minimal required data to internal models
-
----
-
-### Relation to Normalized Model
-
-The above payload can be normalized into the following simplified structure:
+Instead of a misleading boolean, use a **tri-state model**.
 
 ```json
 {
   "source": "tipeee",
+  "eventName": "new-event",
+
+  "isReplay": false,
+
   "type": "donation",
   "username": "AnonymousUser",
   "amount": 1,
   "currencyCode": "EUR",
   "currencySymbol": "€",
   "message": "example message",
+
+  "donationTypeRaw": "DIRECT_MONTH",
+  "campaignTypeRaw": "per_month",
+
+  "recurrence": "unknown",
+  "cadenceHint": "month",
+
   "raw": { "...full payload..." }
 }
 ```
 
 ---
 
-### Disclaimer
+## 9. Reliable Extraction Paths
 
-This appendix reflects **observed behavior of the Tipeee frontend** at a given point
-in time. It does not imply any guarantee of stability, completeness, or long-term
-availability of the described structure.
+| Data | JSON Path |
+|----|----|
+| Replay flag | `event.is_event_replay` |
+| Event id | `event.id` |
+| Created at | `event.created_at` |
+| Username | `event.parameters.username` |
+| Amount | `event.parameters.amount` |
+| Currency | `event.parameters.currency` |
+| Message | `event.parameters.message` |
+| Donation type (raw) | `event.donation_type` |
+| Campaign type | `event.project.parameters.campaign_type` |
+
+---
+
+## 10. Parsing Rules (Must-Follow)
+
+- Never assume field presence
+- Never assume string vs number consistency
+- Never infer recurrence from campaign configuration alone
+- Always preserve raw payload
+- Treat replay and live events identically except for `is_event_replay`
+
+---
+
+## 11. Summary (TL;DR)
+
+- One Socket.IO event: `"new-event"`
+- Replay is a **flag**, not a different event
+- Monthly ≠ recurring
+- No subscription data observed yet
+- Recurrence must remain **unknown** until proven
+- Defensive parsing is mandatory
+
+---
+
+## 12. Status
+
+This document reflects **observed real-world behavior as of 2026-01-19**  
+and should be updated as soon as a **true recurring billing payload** is captured.
