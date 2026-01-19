@@ -1,141 +1,217 @@
-# Tipeee Live Events – Unofficial Technical Specification
+# Specification – Tipeee Live Events (Normalized Contract)
 
-## Scope
-This document describes how to consume **real-time donation events from tipeee.com**
-using the same event stream as the official Tipeee dashboard and widgets.
-
-This specification is **unofficial**, **undocumented by Tipeee**, and provided on a
-**best-effort basis**.
+**Document type:** Functional specification  
+**Status:** Observational / Reverse-engineered  
+**Normativity:** This document defines the **expected consumer-facing contract**  
+**Last update:** 2026-01-19
 
 ---
 
-## Transport & Protocol
-- **Technology**: Socket.IO
-- **Engine.IO version**: v3 (`EIO=3`)
-- **Client requirement**: `socket.io-client@2.x` (mandatory)
-- **Endpoint**:
-  ```
-  https://sso.tipeee.com
-  ```
-- **Socket path**:
-  ```
-  /socket.io/
-  ```
-- **Transports**:
-  ```
-  websocket, polling (fallback)
-  ```
+## 1. Scope
 
-> Socket.IO v3+ clients are **not compatible**.
+This specification defines the **logical contract** for consuming Tipeee live events
+once they have been **successfully received and decoded** at the transport level.
+
+This document intentionally **excludes**:
+- Engine.IO / Socket.IO framing
+- Transport-level concerns
+- Client compatibility issues
+
+➡️ Transport considerations are documented in  
+`docs/compatibility.md`
 
 ---
 
-## Authentication
-Authentication is performed during the Socket.IO handshake.
+## 2. Event Model Overview
 
-- **Query parameter**:
-  ```
-  access_token = <TIPEEE_API_KEY>
-  ```
+### 2.1 Event Source
 
-The API key is provided by Tipeee at the account/widget level and must be treated as a
-secret.
+- **Source platform:** Tipeee
+- **Transport:** Socket.IO (over Engine.IO)
+- **Observed event name:** `"new-event"`
 
----
-
-## Connection Model
-- A **single persistent Socket.IO connection** is established.
-- Once connected, the client **passively listens** for server-pushed events.
-- **No polling** and **no periodic HTTP requests** are required.
-
-This is a pure **event-driven (push)** model.
+At the logical level, consumers should assume:
+- A **single logical event type**
+- Differentiated by payload fields, not by event name
 
 ---
 
-## Subscription (Required)
-After the `connect` event, the client must subscribe to a specific project.
+## 3. Logical Event Types
 
-- **Event name**:
-  ```
-  statistic-user
-  ```
-- **Payload**:
-  ```json
-  {
-    "user": { "username": "<project_slug>" },
-    "usage": "DASHBOARD" | "ALERT" | "WIDGET"
-  }
-  ```
+Although only one Socket.IO event name is observed, the payload allows
+distinguishing multiple **logical cases**.
 
-`usage = "DASHBOARD"` mirrors the behavior of the official Tipeee dashboard and is
-recommended.
+### 3.1 Donation Event (Live)
 
-> In practice, emitting this event shortly after connection (small delay) improves
-> reliability.
+A donation event represents a **live user donation** received during a stream.
+
+Identification rules:
+- `event.type == "donation"`
+- `event.is_event_replay == false` (or missing)
 
 ---
 
-## Incoming Events
-- **Primary event**:
-  ```
-  new-event
-  ```
+### 3.2 Donation Event (Replay)
 
-- The payload:
-  - is JSON
-  - is **not versioned**
-  - may change structure
-  - may be nested or partially wrapped
+A replay event represents a **replayed alert** triggered from the Tipeee dashboard.
 
-Consumers **must implement defensive parsing**.
+Identification rules:
+- `event.type == "donation"`
+- `event.is_event_replay == true`
+
+⚠️ Replay events are **not** separate event types and must not be filtered
+by event name.
 
 ---
 
-## Recommended Normalized Event Model
-For downstream systems (e.g. Streamer.bot), the following normalized structure is
-recommended:
+## 4. Normalized Event Contract
+
+Consumers are strongly encouraged to work with a **normalized event model**
+rather than raw payloads.
+
+### 4.1 Normalized Event Object (Canonical)
 
 ```json
 {
   "source": "tipeee",
+  "eventName": "new-event",
+
+  "isReplay": false,
+
   "type": "donation",
   "username": "string",
-  "amount": number,
+  "amount": 0.0,
   "currencyCode": "EUR",
   "currencySymbol": "€",
   "message": "string",
-  "raw": { "...original payload..." }
+
+  "donationTypeRaw": "string",
+  "campaignTypeRaw": "string | null",
+
+  "recurrence": "unknown | one_shot | recurring",
+  "cadenceHint": "month | year | null",
+
+  "receivedAt": "ISO-8601 timestamp",
+  "raw": { "...full original payload..." }
 }
 ```
 
-The `raw` field should always be preserved for forward compatibility.
+---
+
+## 5. Field Semantics
+
+### 5.1 Core Fields
+
+| Field | Type | Description |
+|----|----|----|
+| `source` | string | Always `"tipeee"` |
+| `eventName` | string | Always `"new-event"` |
+| `isReplay` | boolean | Replay flag derived from payload |
+| `type` | string | Logical type (`"donation"`) |
+| `username` | string | Donor display name |
+| `amount` | number | Donation amount |
+| `currencyCode` | string | ISO currency code |
+| `currencySymbol` | string | Display symbol |
+| `message` | string | User message (may be empty) |
+| `receivedAt` | string | Local reception timestamp |
+| `raw` | object | Full unmodified payload |
 
 ---
 
-## Reliability Considerations
-- Automatic reconnection is required.
-- Silent disconnects may occur.
-- Exponential backoff is recommended.
-- Socket.IO heartbeat/ping-pong handles connection liveness.
+### 5.2 Donation Context Fields
+
+| Field | Type | Meaning |
+|----|----|----|
+| `donationTypeRaw` | string | Raw `event.donation_type` |
+| `campaignTypeRaw` | string | Raw campaign cadence (if present) |
+| `cadenceHint` | enum | Derived hint (`month`, `year`, or `null`) |
+| `recurrence` | enum | Billing certainty state |
 
 ---
 
-## Security Considerations
-- Never log or expose the API key.
-- Treat all incoming payloads as untrusted input.
-- Avoid assuming payload completeness or schema stability.
+## 6. Recurrence Classification (Strict Rules)
+
+### 6.1 Observed Limitation
+
+Current payloads **do not provide sufficient information** to reliably detect
+true recurring subscriptions.
+
+Therefore:
+
+- `recurrence = "unknown"` MUST be the default
+- `recurrence` MUST NOT be inferred from:
+  - campaign configuration
+  - donation type naming
+  - UI context
+
+### 6.2 Allowed Values
+
+| Value | Meaning |
+|----|----|
+| `unknown` | No proof of future billing |
+| `one_shot` | Explicit proof of single payment |
+| `recurring` | Explicit proof of scheduled future billing |
+
+Until subscription-level identifiers are observed, only `unknown` is valid.
 
 ---
 
-## Stability Disclaimer
-- This API is **not officially supported** by Tipeee.
-- No versioning or backward-compatibility guarantees exist.
-- Breaking changes may occur without notice.
+## 7. Replay Semantics
+
+Replay events:
+- Must be processed identically to live events
+- Must not be discarded by default
+- Are explicitly flagged via `isReplay = true`
+
+Consumers may optionally:
+- Ignore replays
+- Route them differently
+- Use them for testing / automation
 
 ---
 
-## Summary
-- Real-time donation events are available via a **persistent Socket.IO connection**
-- No REST polling or scraping is involved
-- The integration is technically clean but **non-contractual**
-- Suitable for best-effort integrations such as Streamer.bot connectors
+## 8. Required Consumer Behavior
+
+A compliant consumer **MUST**:
+
+- Accept `"new-event"` as the sole event name
+- Inspect payload flags to determine replay status
+- Preserve the raw payload
+- Avoid assumptions about recurrence
+- Tolerate missing or null fields
+
+A compliant consumer **MUST NOT**:
+
+- Infer billing behavior without evidence
+- Assume field presence
+- Couple logic to project configuration flags
+
+---
+
+## 9. Error Handling & Forward Compatibility
+
+Consumers should assume:
+- New fields may appear
+- Existing fields may be missing
+- Field types may vary (string vs number)
+
+Best practices:
+- Null-safe parsing
+- Schema-agnostic raw storage
+- Minimal hard dependencies
+
+---
+
+## 10. Relation to Other Documents
+
+- Transport & framing rules → `docs/compatibility.md`
+- Raw payload examples → `docs/appendix-payload.md`
+- Terminology → `docs/glossary.md`
+- Common questions → `docs/faq.md`
+
+---
+
+## 11. Status
+
+This specification reflects **observed behavior as of 2026-01-19**  
+and will evolve as new evidence (e.g. subscription payloads) becomes available.
