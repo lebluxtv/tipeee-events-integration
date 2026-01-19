@@ -1,40 +1,147 @@
-# Tipeee Events Integration
+# Tipeee Live Events – Unofficial Integration Documentation
 
-> ⚠️ Important  
-> This documentation exclusively concerns **tipeee.com** (the Tipeee crowdfunding platform).  
-> It is **not related to TipeeeStream**, which is a separate product with a different technical implementation.
-
-This repository documents **real-time live events observed on tipeee.com**, using the same
-event stream as the official Tipeee dashboard and widgets.
-
-This is an **unofficial**, **undocumented**, **best-effort** technical reference intended
-to help third-party integrations (e.g. Streamer.bot).
+> **Status:** Reverse-engineered / Observational  
+> **Audience:** Developers implementing custom or native clients  
+> **Scope:** Transport, payload, and behavioral documentation for Tipeee live events
 
 ---
 
-## What this repository is
-- A technical reference for Tipeee live events
-- Based on observable frontend behavior
-- Event-driven (Socket.IO, push model)
-- No polling, no scraping
+## Purpose
 
-## What this repository is NOT
-- Not an official API
-- Not affiliated with Tipeee
-- Not related to TipeeeStream
-- No stability or compatibility guarantees
+This repository documents the **observed behavior and structure** of live events
+emitted by **Tipeee** through its **Socket.IO-based event stream**.
+
+It is intended for developers who need to:
+- Consume Tipeee live events outside of the official dashboard
+- Implement **native clients** (C#, C++, Python, etc.)
+- Build automation pipelines (e.g. Streamer.bot, OBS tooling, custom backends)
+
+This is **not** an official API and does **not** claim long-term stability.
 
 ---
 
-## Documentation
+## Important Notice (READ FIRST)
 
-- [Technical Specification](docs/specification.md)
-- [Observed Payload Appendix](docs/appendix-payload.md)
-- [Compatibility Notes](docs/compatibility.md)
-- [FAQ](docs/faq.md)
+⚠️ **Tipeee uses Socket.IO over Engine.IO.**
+
+If you are **not** using the official JavaScript `socket.io-client`,
+you **must** correctly handle:
+- Engine.IO framing
+- Socket.IO event prefixes
+- Ping / pong keep-alive
+
+Failure to do so will result in:
+- Silent loss of events
+- Replays working in JS but not in native clients
+- Random disconnects with no explicit error
+
+➡️ **Before implementing a native client, read:**  
+[`docs/compatibility.md`](docs/compatibility.md)
+
+---
+
+## What This Repository Is (and Is Not)
+
+### This repository **IS**:
+- A **technical reference** based on real observed traffic
+- A clear separation between:
+  - transport-level constraints
+  - payload structure
+  - logical event semantics
+- A living documentation meant to evolve as new cases are observed
+
+### This repository **IS NOT**:
+- An official Tipeee API
+- A guarantee of backward compatibility
+- A replacement for the official dashboard
+- A billing or subscription authority
+
+---
+
+## Documentation Structure
+
+All documentation lives under the `docs/` directory.
+
+```
+docs/
+├── specification.md      # Functional contract (what to consume)
+├── compatibility.md      # Transport & client compatibility (CRITICAL)
+├── appendix-payload.md   # Raw observed payloads (empirical)
+├── architecture.md       # High-level system overview
+├── glossary.md           # Terminology definitions
+└── faq.md                # Common pitfalls & questions
+```
+
+### Recommended Reading Order
+
+1. **README.md** (this file)
+2. `docs/compatibility.md`
+3. `docs/specification.md`
+4. `docs/appendix-payload.md`
+5. `docs/faq.md`
+
+---
+
+## Key Observations (Summary)
+
+- All donation-related events arrive as **Socket.IO event `"new-event"`**
+- Replay alerts are **not separate events**
+  - They are identified via a payload flag
+- Monthly campaign context **does not imply recurring billing**
+- True subscription / recurring billing **cannot currently be inferred reliably**
+- Engine.IO framing mistakes can silently break everything
+
+---
+
+## Design Philosophy
+
+This documentation follows these principles:
+
+- **Strict separation of concerns**
+- **Defensive parsing**
+- **Explicit uncertainty**
+- **No assumptions without evidence**
+- **Transparency over convenience**
+
+Where behavior is uncertain, it is documented as such.
+
+---
+
+## Who Should Read This
+
+- Developers building **native Socket.IO clients**
+- Tool authors integrating Tipeee into automation systems
+- Engineers debugging “works in JS, fails elsewhere” scenarios
+- Anyone needing a **clear, honest picture** of how Tipeee events behave
 
 ---
 
 ## Legal & Disclaimer
-This project is **not affiliated with, endorsed by, or supported by Tipeee**.
-All information is provided for documentation and interoperability purposes only.
+
+This project is provided for **educational and interoperability purposes**.
+
+- No affiliation with Tipeee
+- All trademarks belong to their respective owners
+- Use at your own risk
+
+---
+
+## Contributing
+
+If you observe:
+- new event types
+- subscription-related payloads
+- breaking changes
+- undocumented fields
+
+please open an issue or submit a pull request with:
+- sanitized payload
+- context of observation
+- date and client used
+
+---
+
+## Status
+
+This documentation reflects **observed behavior as of 2026-01-19**  
+and will be updated as new evidence emerges.
