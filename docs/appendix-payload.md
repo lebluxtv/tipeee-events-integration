@@ -1,59 +1,57 @@
-# Tipeee Socket.IO Event Payload – Observed Specification
-**Version:** 1.0  
-**Status:** Observational / Reverse-engineered  
+# Appendix – Observed Tipeee Payloads
+
+**Document type:** Empirical appendix  
+**Status:** Observational / Non-normative  
+**Purpose:** Illustrate real payloads observed on the wire  
 **Last update:** 2026-01-19
 
 ---
 
-## 1. Scope & Intent
+## 1. Purpose of This Appendix
 
-This document describes the **observed structure and behavior** of events received
-from the **Tipeee Socket.IO live event stream**, as used by the Tipeee dashboard
-and third-party integrations.
+This document contains **raw and sanitized examples** of payloads observed
+from the Tipeee Socket.IO event stream.
 
-⚠️ **Important notice**
+It exists to:
+- Provide transparency
+- Support debugging and validation
+- Illustrate real-world field presence and nesting
 
-- This is **not an official API contract**
-- The structure is **reverse-engineered from real traffic**
-- Field presence, naming and nesting **may change without notice**
-- All parsing **must be defensive**
-- Any behavioral inference (recurring billing, replay, etc.) must be explicitly justified
+⚠️ **This document is NOT normative**
+
+- Field presence is not guaranteed
+- Examples do not define a contract
+- Consumers must rely on `specification.md` for behavior
 
 ---
 
-## 2. Transport Layer (Socket.IO / Engine.IO)
+## 2. General Notes
 
-### 2.1 Event Envelope
+- All examples originate from the same Socket.IO event:
+  ```
+  "new-event"
+  ```
+- Live events and replay events share the same structure
+- Differences are expressed via payload flags
+- Sensitive identifiers have been sanitized
 
-Observed Socket.IO frames carrying payloads are **EVENT frames**:
+---
 
+## 3. Common High-Level Structure
+
+```json
+{
+  "event": {
+    "...": "..."
+  }
+}
 ```
-42["<eventName>", { ...payload... }]
-```
 
-Observed so far:
-
-- `eventName = "new-event"`
-
-No alternative event names have been observed for donations or replays.
+All meaningful data is nested under the `event` key.
 
 ---
 
-## 3. Single Raw Payload Format (Important)
-
-There is **ONE raw payload format**.
-
-There are **NOT multiple raw JSON schemas**.
-
-Differences such as:
-- live vs replay
-- monthly context vs one-shot payment
-
-are expressed via **flags and contextual fields**, not via distinct event types.
-
----
-
-## 4. Full Observed Payload (Sanitized Example)
+## 4. Example A – Live Donation Event (Sanitized)
 
 ```json
 {
@@ -65,25 +63,25 @@ are expressed via **flags and contextual fields**, not via distinct event types.
     "is_event_replay": false,
     "private_tips": false,
 
-    "id": "<event_id>",
-    "created_at": "YYYY-MM-DDTHH:MM:SS+TZ",
+    "id": 2277993,
+    "created_at": "2026-01-14T10:54:34+01:00",
 
     "parameters": {
       "amount": 1,
       "currency": "EUR",
-      "message": "example message",
-      "formattedMessage": "example message",
-      "username": "AnonymousUser",
+      "message": "tip test",
+      "formattedMessage": "tip test",
+      "username": "Holdus",
       "publicMessage": false
     },
 
     "project": {
-      "id": "<project_id>",
-      "slug": "<project_slug>",
+      "id": 353397,
+      "slug": "lebluxtv",
       "status": "OPEN",
 
       "translations": {
-        "fr": { "name": "ExampleProject" }
+        "fr": { "name": "LeBluxTV" }
       },
 
       "currency": {
@@ -105,149 +103,85 @@ are expressed via **flags and contextual fields**, not via distinct event types.
 
 ---
 
-## 5. Live Event vs Replay Event
-
-### 5.1 Key Observation
-
-**Replay alerts DO NOT use a different event name.**
-
-Both live events and replayed alerts arrive as:
-
-```
-eventName = "new-event"
-```
-
-### 5.2 Replay Detection (Authoritative)
-
-Replay detection is based **solely** on the payload flag:
-
-```
-event.is_event_replay = true
-```
-
-| Case | is_event_replay |
-|----|----|
-| Live donation | `false` or missing |
-| Replay (dashboard relaunch) | `true` |
-
----
-
-## 6. Donation Cadence vs True Recurrence (Critical Section)
-
-### 6.1 What the Payload CAN Tell Us
-
-The following fields are observed:
-
-- `event.donation_type` (e.g. `"DIRECT_MONTH"`)
-- `event.project.parameters.campaign_type` (e.g. `"per_month"`)
-
-These fields indicate the **campaign or UI context** in which the donation was made.
-
-They **DO NOT prove** that:
-- the payment will repeat
-- a subscription exists
-- a future charge is scheduled
-
-A user can make a **one-time payment** inside a monthly campaign.
-
-### 6.2 What the Payload DOES NOT Contain (So Far)
-
-No observed payload contains:
-
-- `subscription_id`
-- `recurring_id`
-- `next_payment_at`
-- `next_charge_at`
-- `subscription` / `recurring` object
-
-Therefore:
-
-> **True recurring billing CANNOT be determined with certainty from current payloads.**
-
----
-
-## 7. Correct Conceptual Model
-
-### 7.1 Distinguish These Three Concepts
-
-| Concept | Meaning |
-|------|------|
-| Donation type | Technical classification used internally by Tipeee |
-| Campaign cadence | Monthly / yearly context of the project |
-| True recurrence | Automatic future billing |
-
-Only the first two are currently observable.
-
----
-
-## 8. Recommended Normalized Model (Safe & Honest)
-
-Instead of a misleading boolean, use a **tri-state model**.
+## 5. Example B – Replay Donation Event (Dashboard Relaunch)
 
 ```json
 {
-  "source": "tipeee",
-  "eventName": "new-event",
+  "event": {
+    "type": "donation",
+    "donation_type": "DIRECT_MONTH",
+    "display": true,
+    "simulation": false,
+    "is_event_replay": true,
 
-  "isReplay": false,
+    "id": 2277993,
+    "created_at": "2026-01-14T10:54:34+01:00",
 
-  "type": "donation",
-  "username": "AnonymousUser",
-  "amount": 1,
-  "currencyCode": "EUR",
-  "currencySymbol": "€",
-  "message": "example message",
-
-  "donationTypeRaw": "DIRECT_MONTH",
-  "campaignTypeRaw": "per_month",
-
-  "recurrence": "unknown",
-  "cadenceHint": "month",
-
-  "raw": { "...full payload..." }
+    "parameters": {
+      "amount": 1,
+      "currency": "EUR",
+      "message": "tip test",
+      "formattedMessage": "tip test",
+      "username": "Holdus",
+      "publicMessage": false
+    }
+  }
 }
 ```
 
 ---
 
-## 9. Reliable Extraction Paths
+## 6. Key Observations (Empirical)
 
-| Data | JSON Path |
-|----|----|
-| Replay flag | `event.is_event_replay` |
-| Event id | `event.id` |
-| Created at | `event.created_at` |
-| Username | `event.parameters.username` |
-| Amount | `event.parameters.amount` |
-| Currency | `event.parameters.currency` |
-| Message | `event.parameters.message` |
-| Donation type (raw) | `event.donation_type` |
-| Campaign type | `event.project.parameters.campaign_type` |
+- Replay events:
+  - Use the same event name
+  - Use the same payload structure
+  - Differ only by `is_event_replay = true`
 
----
+- Donation cadence indicators:
+  - `donation_type = DIRECT_MONTH`
+  - `project.parameters.campaign_type = per_month`
 
-## 10. Parsing Rules (Must-Follow)
-
-- Never assume field presence
-- Never assume string vs number consistency
-- Never infer recurrence from campaign configuration alone
-- Always preserve raw payload
-- Treat replay and live events identically except for `is_event_replay`
+These fields **do not guarantee recurring billing**.
 
 ---
 
-## 11. Summary (TL;DR)
+## 7. Field Volatility
 
-- One Socket.IO event: `"new-event"`
-- Replay is a **flag**, not a different event
-- Monthly ≠ recurring
-- No subscription data observed yet
-- Recurrence must remain **unknown** until proven
-- Defensive parsing is mandatory
+Observed variability:
+- Some boolean flags may be missing
+- `project.parameters` may contain dozens of unrelated config flags
+- Numeric values may appear as strings in some cases
+- Additional fields may appear without notice
 
 ---
 
-## 12. Status
+## 8. Sanitization Policy
 
-This document reflects **observed real-world behavior as of 2026-01-19**  
-and should be updated as soon as a **true recurring billing payload** is captured.
+The following have been sanitized or removed:
+- API keys
+- Media paths
+- User-identifying metadata beyond display name
+- Internal configuration fields not relevant to event semantics
+
+---
+
+## 9. How to Use This Appendix
+
+Use this document to:
+- Compare your received payloads
+- Validate parsing logic
+- Debug unexpected field absence or nesting
+
+Do **not**:
+- Hard-code logic based on appendix examples
+- Assume fields are always present
+- Infer billing behavior from these samples
+
+---
+
+## 10. Relation to Other Documents
+
+- Contract & behavior → `specification.md`
+- Transport framing → `compatibility.md`
+- Terminology → `glossary.md`
